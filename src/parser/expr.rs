@@ -335,7 +335,7 @@ mod tests {
 
         #[test]
         fn test_expr_evaluate_binary(
-            left_val in 100..100u16,
+            left_val in 1..100u16,
             right_val in 1..100u16,
             op in prop::sample::select(&[
                 BinaryOperator::Add,
