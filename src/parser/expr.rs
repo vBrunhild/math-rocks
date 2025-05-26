@@ -486,7 +486,7 @@ mod tests {
                 BinaryOperator::Add => prop_assert_eq!(result, left + right),
                 BinaryOperator::Subtract => prop_assert_eq!(result, left - right),
                 BinaryOperator::Multiply => prop_assert_eq!(result, left * right),
-                BinaryOperator::Divide => prop_assert_eq!(result, left / right),
+                BinaryOperator::Divide => prop_assert_eq!(result, left.checked_div(right).unwrap_or(0)),
             }
         }
 
