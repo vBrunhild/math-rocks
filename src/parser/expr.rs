@@ -64,14 +64,24 @@ impl Expr {
 
             Expr::UnaryOperator { op, operand } => {
                 let (min, max) = operand.possible_values();
-                (op.op(min), op.op(max))
+                match op {
+                    UnaryOperator::Plus => (min, max),
+                    UnaryOperator::Minus => (-max, -min)
+                }
             },
 
             Expr::BinaryOperator { op, left, right } => {
                 let (l_min, l_max) = left.possible_values();
                 let (r_min, r_max) = right.possible_values();
 
-                (op.op(l_min, r_min), op.op(l_max, r_max))
+                let combinations = [
+                    op.op(l_min, r_min),
+                    op.op(l_min, r_max),
+                    op.op(l_max, r_min),
+                    op.op(l_max, r_max),
+                ];
+
+                (combinations.iter().min().copied().unwrap(), combinations.iter().max().copied().unwrap())
             }
         }
     }
