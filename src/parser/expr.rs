@@ -150,7 +150,7 @@ impl Display for Expr {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnaryOperator {
     Plus,
     Minus,
@@ -177,7 +177,7 @@ impl Display for UnaryOperator {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinaryOperator {
     Add,
     Subtract,
@@ -324,7 +324,7 @@ mod tests {
             op in prop::sample::select(&[UnaryOperator::Plus, UnaryOperator::Minus])
         ) {
             let expr = Expr::UnaryOperator {
-                op: op.clone(),
+                op,
                 operand: Box::new(Expr::Literal(value))
             };
             let result = expr.evaluate();
@@ -349,7 +349,7 @@ mod tests {
             ])
         ) {
             let expr = Expr::BinaryOperator {
-                op: op.clone(),
+                op,
                 left: Box::new(Expr::Literal(left_val)),
                 right: Box::new(Expr::Literal(right_val)),
             };
@@ -391,7 +391,7 @@ mod tests {
             op in prop::sample::select(&[UnaryOperator::Plus, UnaryOperator::Minus])
         ) {
             let expr = Expr::UnaryOperator {
-                op: op.clone(),
+                op,
                 operand: Box::new(Expr::Literal(value))
             };
             let (min, max) = expr.possible_values();
@@ -410,16 +410,17 @@ mod tests {
 
         #[test]
         fn test_expr_possible_values_binary(
-            left_val in 1..50u16,
-            right_val in 1..50u16,
+            left_val in 1..100u16,
+            right_val in 1..100u16,
             op in prop::sample::select(&[
                 BinaryOperator::Add,
                 BinaryOperator::Subtract,
-                BinaryOperator::Multiply
+                BinaryOperator::Multiply,
+                BinaryOperator::Divide
             ])
         ) {
             let expr = Expr::BinaryOperator {
-                op: op.clone(),
+                op,
                 left: Box::new(Expr::Literal(left_val)),
                 right: Box::new(Expr::Literal(right_val)),
             };
