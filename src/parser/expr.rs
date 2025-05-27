@@ -241,11 +241,23 @@ mod tests {
     use proptest::prelude::*;
     use crate::{Roll, Mode};
 
+    fn literal_strategy() -> impl Strategy<Value = Expr> {
+        (1..=100u16).prop_map(Expr::Literal)
+    }
+
+    fn unary_strategy() -> impl Strategy<Value = Expr> {
+        (0..=1, literal_strategy())
+            .prop_map(|(unary_op, literal)| match unary_op {
+                0 => literal,
+                _ => Expr::neg(literal)
+            })
+    }
+
     fn mode_strategy(max_n: u16) -> impl Strategy<Value = Mode> {
         if max_n <= 1 {
             return Just(Mode::None).boxed();
         }
-        
+
         (1u16..max_n, 0u8..5).prop_map(|(n, mode_type)| {
             match mode_type {
                 0 => Mode::None,
@@ -268,7 +280,7 @@ mod tests {
 
     fn expr_strategy() -> impl Strategy<Value = Expr> {
         let leaf = prop_oneof![
-            (1..1000u16).prop_map(Expr::Literal),
+            literal_strategy(),
             roll_strategy().prop_map(Expr::Roll),
         ];
 
@@ -438,6 +450,107 @@ mod tests {
         }
 
         #[test]
+        fn test_expr_avg_literal(value in 1..1000u16) {
+            let expr = Expr::Literal(value);
+            let avg = expr.avg();
+
+            prop_assert_eq!(avg, value as f32);
+        }
+
+        #[test]
+        fn test_expr_avg_roll(roll in roll_strategy()) {
+            let expr = Expr::Roll(roll.clone());
+            let avg = expr.avg();
+            let (min, max) = expr.possible_values();
+
+            prop_assert_eq!(avg, (min as f32 + max as f32) / 2.0);
+        }
+
+        #[test]
+        fn test_expr_avg_unary(
+            value in 1..1000u16,
+            op in prop::sample::select(&[UnaryOperator::Plus, UnaryOperator::Minus])
+        ) {
+            let expr = Expr::UnaryOperator {
+                op,
+                operand: Box::new(Expr::Literal(value))
+            };
+            let avg = expr.avg();
+            let (min, max) = expr.possible_values();
+
+            prop_assert_eq!(avg, (min as f32 + max as f32) / 2.0);
+        }
+
+        #[test]
+        fn test_expr_avg_binary(
+            left_val in 1..100u16,
+            right_val in 1..100u16,
+            op in prop::sample::select(&[
+                BinaryOperator::Add,
+                BinaryOperator::Subtract,
+                BinaryOperator::Multiply,
+                BinaryOperator::Divide
+            ])
+        ) {
+            let expr = Expr::BinaryOperator {
+                op,
+                left: Box::new(Expr::Literal(left_val)),
+                right: Box::new(Expr::Literal(right_val)),
+            };
+            let avg = expr.avg();
+            let (min, max) = expr.possible_values();
+
+            prop_assert_eq!(avg, (min as f32 + max as f32) / 2.0);
+        }
+
+        #[test]
+        fn test_unary_op_helper(
+            value in 1..100u16,
+            op in prop::sample::select(&[UnaryOperator::Plus, UnaryOperator::Minus])
+        ) {
+            let expr = Expr::unary_op(op, value);
+
+            match expr {
+                Expr::UnaryOperator { op: result_op, operand } => {
+                    prop_assert_eq!(result_op, op);
+                    match *operand {
+                        Expr::Literal(v) => prop_assert_eq!(v, value),
+                        _ => panic!("Expected literal operand")
+                    }
+                },
+                _ => panic!("Expected unary operator")
+            }
+        }
+
+        #[test]
+        fn test_binary_op_helper(
+            left in 1..100u16,
+            right in 1..100u16,
+            op in prop::sample::select(&[
+                BinaryOperator::Add,
+                BinaryOperator::Subtract,
+                BinaryOperator::Multiply,
+                BinaryOperator::Divide
+            ])
+        ) {
+            let expr = Expr::binary_op(op, left, right);
+
+            match expr {
+                Expr::BinaryOperator { op: result_op, left: l, right: r } => {
+                    prop_assert_eq!(result_op, op);
+                    match (*l, *r) {
+                        (Expr::Literal(lv), Expr::Literal(rv)) => {
+                            prop_assert_eq!(lv, left);
+                            prop_assert_eq!(rv, right);
+                        },
+                        _ => panic!("Expected literal operands")
+                    }
+                },
+                _ => panic!("Expected binary operator")
+            }
+        }
+
+        #[test]
         fn test_expr_constructors(
             left in 1..100u16,
             right in 1..100u16
@@ -525,6 +638,18 @@ mod tests {
 
             prop_assert!(evaluation.value >= min);
             prop_assert!(evaluation.value <= max);
+        }
+
+        #[test]
+        fn test_edge_case_div_0(expr in unary_strategy()) {
+            let div_expr = Expr::BinaryOperator {
+                op: BinaryOperator::Divide,
+                left: Box::new(expr),
+                right: Box::new(Expr::Literal(0))
+            };
+
+            let evaluation = div_expr.evaluate();
+            prop_assert_eq!(evaluation.value, 0)
         }
     }
 }
