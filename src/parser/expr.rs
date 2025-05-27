@@ -137,6 +137,7 @@ impl From<u16> for Expr {
 }
 
 impl Display for Expr {
+    #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Literal(v) => write!(f, "{v}"),
@@ -166,6 +167,7 @@ impl UnaryOperator {
 }
 
 impl Display for UnaryOperator {
+    #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             UnaryOperator::Plus => write!(f, "+"),
@@ -196,6 +198,7 @@ impl BinaryOperator {
 }
 
 impl Display for BinaryOperator {
+    #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BinaryOperator::Add => write!(f, "+"),
