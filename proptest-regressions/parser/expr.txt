@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 915ddb673b909dcc306a6608be6a6cb7c9b1cd2c56cad186cbc397de0c1b4db8 # shrinks to expr = BinaryOperator { op: Subtract, left: Literal(1), right: Roll(Roll { size: 2, count: 1, mode: None }) }
+cc 57a62d5453b9b913b5632bb6439dc455ee454dd80b6f7416e6dcfc348bbab8af # shrinks to left = 0, right = 0, op = Divide
