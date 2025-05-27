@@ -91,15 +91,7 @@ impl Expr {
         (min as f32 + max as f32) / 2.0
     }
 
-    pub fn lit(value: u16) -> Self {
-        Self::Literal(value)
-    }
-
-    pub fn roll(roll: Roll) -> Self {
-        Self::Roll(roll)
-    }
-
-    pub fn unary_op<T: Into<Expr>>(op: UnaryOperator, operand: T) -> Self {
+    fn unary_op<T: Into<Expr>>(op: UnaryOperator, operand: T) -> Self {
         Self::UnaryOperator { op, operand: Box::new(operand.into()) }
     }
 
@@ -111,7 +103,7 @@ impl Expr {
         Self::unary_op(UnaryOperator::Minus, operand)
     }
 
-    pub fn binary_op<L: Into<Expr>, R: Into<Expr>>(op: BinaryOperator, left: L, right: R) -> Self {
+    fn binary_op<L: Into<Expr>, R: Into<Expr>>(op: BinaryOperator, left: L, right: R) -> Self {
         Self::BinaryOperator { op, left: Box::new(left.into()), right: Box::new(right.into()) }
     }
 
