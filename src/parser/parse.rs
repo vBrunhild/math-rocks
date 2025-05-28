@@ -146,11 +146,12 @@ impl Parser {
                 let mode_token = self.current;
 
                 let n = match self.peek {
-                    Token::Number(n) => n,
+                    Token::Number(n) => {
+                        self.next_token()?;
+                        n
+                    },
                     _ => 1
                 };
-
-                self.next_token()?;
 
                 match mode_token {
                     Token::KeepHighest => Ok(Mode::kh(n)),
