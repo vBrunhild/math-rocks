@@ -43,6 +43,9 @@ impl Parser {
 
     pub fn parse(&mut self) -> Result<Expr> {
         self.parse_tokens(Precedence::Lowest)
+            .map_err(|err| {
+                ParserError::RollExpr(format!("{}\nat position {}", err, self.lexer.position))
+            })
     }
 
     fn next_token(&mut self) -> Result<()> {
