@@ -260,6 +260,28 @@ fn roll_result(highest: bool, n: u16, values: Vec<u16>) -> RollResult {
 }
 
 
+#[macro_export]
+macro_rules! roll {
+    ($size:literal) => {
+        $crate::roll::Roll::builder($size)
+            .build()
+    };
+
+    ($size:literal, $count:literal) => {
+        $crate::roll::Roll::builder($size)
+            .count($count)
+            .build()
+    };
+
+    ($size:literal, $count:literal, $mode:ident, $n:literal) => {
+        $crate::roll::Roll::builder($size)
+            .count($count)
+            .mode($crate::roll::Mode::$mode($n))
+            .build()
+    }
+}
+
+
 #[cfg(test)]
 mod test {
     use proptest::prelude::*;
