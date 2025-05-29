@@ -36,8 +36,12 @@ impl Parser {
     pub fn new(input: &str) -> Result<Self> {
         let mut lexer = Lexer::new(input);
         let current = lexer.next_token()?;
-        let peek = lexer.next_token()?;
 
+        if current == Token::Eof {
+            return Err(ParserError::Empty);
+        }
+
+        let peek = lexer.next_token()?;
         Ok(Self { lexer, current, peek })
     }
 

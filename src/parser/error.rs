@@ -22,7 +22,10 @@ pub enum ParserError {
     RollExpr(String),
 
     #[error("Roll error - {0}")]
-    RollError(#[from] Box<RollError>)
+    RollError(#[from] Box<RollError>),
+
+    #[error("Input string is empty")]
+    Empty
 }
 
 pub type Result<T> = std::result::Result<T, ParserError>;
