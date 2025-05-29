@@ -118,7 +118,7 @@ impl Lexer {
 mod test {
     use super::*;
     use proptest::prelude::*;
-    use crate::parser::test_strategies::*;
+    use crate::parser::str_test_strategies::*;
 
 
     fn dice_modifier_strategy() -> impl Strategy<Value = Token> {

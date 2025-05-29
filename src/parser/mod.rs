@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod test_strategies;
+mod str_test_strategies;
 
 mod error;
 mod lexer;

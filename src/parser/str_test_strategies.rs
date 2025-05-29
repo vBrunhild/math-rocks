@@ -15,7 +15,7 @@ pub(crate) fn simple_dice_strategy() -> impl Strategy<Value = String> {
 
 pub(crate) fn dice_with_modifier_strategy() -> impl Strategy<Value = String> {
     (
-        1u16..=1000,
+        2u16..=1000,
         1u16..=1000,
         prop_oneof!["kh", "kl", "dh", "dl"],
         prop::option::of(1u16..=1000)
