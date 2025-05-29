@@ -47,9 +47,7 @@ impl Parser {
 
     pub fn parse(&mut self) -> Result<Expr> {
         self.parse_tokens(Precedence::Lowest)
-            .map_err(|err| {
-                ParserError::RollExpr(format!("{}\nat position {}", err, self.lexer.position))
-            })
+            .map_err(|err| err.at_pos(self.lexer.position))
     }
 
     fn next_token(&mut self) -> Result<()> {
@@ -98,7 +96,14 @@ impl Parser {
                 Ok(expr)
             },
 
-            other => Err(ParserError::RollExpr(format!("Unexpected expression {:?}", other)))
+            other => {
+                let msg = match other {
+                    Token::Dice => "dice expressions need number literal before 'd'\n✕ d6\n✓ 1d6".into(),
+                    _ => format!("Unexpected expression: {:?}", other)
+                };
+
+                Err(ParserError::RollExpr(msg))
+            }
         }
     }
 
