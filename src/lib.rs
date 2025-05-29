@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod roll_test_strategies;
+
 mod error;
 mod roll;
 mod parser;

@@ -136,7 +136,14 @@ impl Parser {
 
         let mode = self.parse_dice_mode()?;
 
-        Ok(Roll::new_unchecked(size, count, mode).into())
+        Ok(
+            Roll::builder(size)
+                .count(count)
+                .mode(mode)
+                .build()
+                .map_err(Box::new)?
+                .into()
+        )
     }
 
     fn parse_dice_mode(&mut self) -> Result<Mode> {

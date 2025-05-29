@@ -90,10 +90,6 @@ pub struct Roll {
 }
 
 impl Roll {
-    pub(crate) fn new_unchecked(size: u16, count: u16, mode: Mode) -> Self {
-        Self { size, count, mode }
-    }
-
     pub fn builder(size: u16) -> RollBuilder {
         RollBuilder::new(size)
     }
@@ -268,6 +264,8 @@ fn roll_result(highest: bool, n: u16, values: Vec<u16>) -> RollResult {
 mod test {
     use proptest::prelude::*;
     use super::*;
+    use crate::roll_test_strategies::roll_strategy;
+
 
     proptest! {
         #[test]
@@ -284,9 +282,7 @@ mod test {
             let dl = Mode::dl(n);
             assert!(matches!(dl, Mode::Drop { highest: false, n: _ }));
         }
-    }
 
-    proptest! {
         #[test]
         fn test_mode_validation(n in 0..100u16, highest: bool) {
             let keep_mode = Mode::Keep { highest, n }.validate_non_zero();
@@ -300,9 +296,7 @@ mod test {
                 prop_assert!(drop_mode.is_ok());
             }
         }
-    }
 
-    proptest! {
         #[test]
         fn test_mode_value(n in 0..100u16, highest: bool) {
             let keep_mode = Mode::Keep { highest, n };
@@ -312,9 +306,7 @@ mod test {
             prop_assert_eq!(drop_mode.value(), if n == 0 { Some(0) } else { Some(n) });
             prop_assert_eq!(Mode::None.value(), None);
         }
-    }
 
-    proptest! {
         #[test]
         fn test_mode_display(n in 1..100u16, highest: bool) {
             let keep_mode = Mode::Keep { highest, n };
@@ -334,9 +326,7 @@ mod test {
 
             prop_assert_eq!(none_str, "");
         }
-    }
 
-    proptest! {
         #[test]
         fn test_roll_value_methods(value in 1..100u16) {
             let kept = RollValue::Kept(value);
@@ -348,82 +338,55 @@ mod test {
             prop_assert_eq!(kept.dropped(), None);
             prop_assert_eq!(dropped.dropped(), Some(value));
         }
-    }
 
-    proptest! {
         #[test]
-        fn test_roll_methods(
-            size in 1..100u16,
-            count in 1..100u16,
-            keep_n in 1..50u16,
-            drop_n in 1..50u16,
-            highest: bool
-        ) {
-            let keep_n = std::cmp::min(keep_n, count.saturating_sub(1));
-            let drop_n = std::cmp::min(drop_n, count.saturating_sub(1));
+        fn test_roll_methods(roll in roll_strategy()) {
+            let size = roll.size;
+            let count = roll.count;
+            let result = roll.roll();
 
-            let rolls = vec![
-                Roll::new_unchecked(size, count, Mode::None),
-                Roll::new_unchecked(size, count, Mode::Keep { highest, n: keep_n }),
-                Roll::new_unchecked(size, count, Mode::Drop { highest, n: drop_n }),
-            ];
+            prop_assert!(result.len() == count as usize);
 
-            for roll in rolls {
-                let result = roll.roll();
-                prop_assert!(result.len() == count as usize);
+            let min_val = roll.min();
+            match roll.mode {
+                Mode::None => prop_assert_eq!(min_val, count),
+                Mode::Keep { n, .. } => prop_assert_eq!(min_val, n),
+                Mode::Drop { n, .. } => prop_assert_eq!(min_val, count - n),
+            }
 
-                let min_val = roll.min();
-                match roll.mode {
-                    Mode::None => prop_assert_eq!(min_val, count),
-                    Mode::Keep { n, .. } => prop_assert_eq!(min_val, n),
-                    Mode::Drop { n, .. } => prop_assert_eq!(min_val, count - n),
-                }
+            let max_val = roll.max();
+            match roll.mode {
+                Mode::None => prop_assert_eq!(max_val, size * count),
+                Mode::Keep { n, .. } => prop_assert_eq!(max_val, size * n),
+                Mode::Drop { n, .. } => prop_assert_eq!(max_val, size * (count - n)),
+            }
 
-                let max_val = roll.max();
-                match roll.mode {
-                    Mode::None => prop_assert_eq!(max_val, size * count),
-                    Mode::Keep { n, .. } => prop_assert_eq!(max_val, size * n),
-                    Mode::Drop { n, .. } => prop_assert_eq!(max_val, size * (count - n)),
-                }
+            let avg = roll.avg();
+            let (min_poss, max_poss) = roll.possible_values();
+            prop_assert_eq!(avg, (min_val as f32 + max_val as f32) / 2.0);
+            prop_assert_eq!((min_poss, max_poss), (min_val, max_val));
 
-                let avg = roll.avg();
-                let (min_poss, max_poss) = roll.possible_values();
-                prop_assert_eq!(avg, (min_val as f32 + max_val as f32) / 2.0);
-                prop_assert_eq!((min_poss, max_poss), (min_val, max_val));
-
-                let values = roll.generate_values();
-                prop_assert_eq!(values.len(), count as usize);
-                for &val in &values {
-                    prop_assert!(val >= 1 && val <= size);
-                }
+            let values = roll.generate_values();
+            prop_assert_eq!(values.len(), count as usize);
+            for &val in &values {
+                prop_assert!(val >= 1 && val <= size);
             }
         }
-    }
 
-    proptest! {
         #[test]
-        fn test_roll_display(size in 1..20u16, count in 1..10u16, n in 1..5u16) {
-            let roll_none = Roll::new_unchecked(size, count, Mode::None);
-            let roll_kh = Roll::new_unchecked(size, count, Mode::kh(n));
-            let roll_kl = Roll::new_unchecked(size, count, Mode::kl(n));
-            let roll_dh = Roll::new_unchecked(size, count, Mode::dh(n));
-            let roll_dl = Roll::new_unchecked(size, count, Mode::dl(n));
+        fn test_roll_display(roll in roll_strategy()) {
+            let mode = match roll.mode {
+                Mode::None => "".into(),
+                Mode::Keep { highest, n } => if highest { format!("kh{n}") } else { format!("kl{n}") },
+                Mode::Drop { highest, n } => if highest { format!("dh{n}") } else { format!("dl{n}") }
+            };
 
-            let display_none = format!("{}", roll_none);
-            let display_kh = format!("{}", roll_kh);
-            let display_kl = format!("{}", roll_kl);
-            let display_dh = format!("{}", roll_dh);
-            let display_dl = format!("{}", roll_dl);
+            let expected_display = format!("{}d{}{}", roll.count, roll.size, mode);
+            let actual_display = roll.to_string();
 
-            prop_assert_eq!(display_none, format!("{count}d{size}"));
-            prop_assert_eq!(display_kh, format!("{count}d{size}kh{n}"));
-            prop_assert_eq!(display_kl, format!("{count}d{size}kl{n}"));
-            prop_assert_eq!(display_dh, format!("{count}d{size}dh{n}"));
-            prop_assert_eq!(display_dl, format!("{count}d{size}dl{n}"));
+            prop_assert_eq!(expected_display, actual_display);
         }
-    }
 
-    proptest! {
         #[test]
         fn test_roll_builder_validation(
             size in 0..100u16,
@@ -468,9 +431,7 @@ mod test {
                 }
             }
         }
-    }
 
-    proptest! {
         #[test]
         fn test_roll_result_total(values in prop::collection::vec(1..100u16, 1..20)) {
             let kept_only: Vec<RollValue> = values.iter()
@@ -503,9 +464,7 @@ mod test {
 
             prop_assert_eq!(result_mixed.total(), expected_mixed);
         }
-    }
 
-    proptest! {
         #[test]
         fn test_roll_result_function(
             values in prop::collection::vec(1..20u16, 2..10),
@@ -530,15 +489,13 @@ mod test {
 
             prop_assert_eq!(dropped_count, values.len() - n as usize);
         }
-    }
 
-    proptest! {
         #[test]
         fn test_roll_result_from_iterator(values in prop::collection::vec(1..100u16, 1..20)) {
             let roll_values: Vec<RollValue> = values.into_iter()
                 .map(RollValue::Kept)
                 .collect();
-            
+
             let result: RollResult = roll_values.clone().into_iter().collect();
             prop_assert_eq!(result.len(), roll_values.len());
         }
