@@ -158,7 +158,7 @@ mod test {
         }
 
         #[test]
-        fn test_parentheses(paren in "[()]") {
+        fn test_parenthesis(paren in "[()]") {
             let mut lexer = Lexer::new(&paren);
             let token = lexer.next_token().unwrap();
 
