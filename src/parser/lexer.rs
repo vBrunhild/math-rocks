@@ -69,7 +69,7 @@ impl Lexer {
             }
             '0'..='9' => self.read_number(),
             'a'..='z' | 'A'..='Z' => self.read_identifier(),
-            _ => Err(ParserError::Token(ch))
+            _ => Err(ParserError::Token(ch).at_pos(self.position))
         }
     }
 
@@ -89,7 +89,7 @@ impl Lexer {
         let number: u16 = number_str.parse()?;
 
         if number == 0 {
-            return Err(ParserError::ZeroValue);
+            return Err(ParserError::ZeroValue.at_pos(start));
         }
 
         Ok(Token::Number(number))
@@ -108,7 +108,7 @@ impl Lexer {
             "kl" => Ok(Token::KeepLowest),
             "dh" => Ok(Token::DropHighest),
             "dl" => Ok(Token::DropLowest),
-            other => Err(ParserError::Identifier(other.into())),
+            other => Err(ParserError::Identifier(other.into()).at_pos(start)),
         }
     }
 }
@@ -199,9 +199,10 @@ mod test {
             })
         ) {
             let mut lexer = Lexer::new(&ch.to_string());
-            let result = lexer.next_token();
+            let err_at_pos = lexer.next_token().unwrap_err();
+            let err = err_at_pos.err();
 
-            assert!(matches!(result, Err(ParserError::Token(_))));
+            prop_assert!(matches!(err, ParserError::Token(_)));
         }
 
         #[test]
@@ -215,9 +216,10 @@ mod test {
             }
 
             let mut lexer = Lexer::new(&identifier);
-            let result = lexer.next_token();
+            let err_at_pos = lexer.next_token().unwrap_err();
+            let err = err_at_pos.err();
 
-            assert!(matches!(result, Err(ParserError::Identifier(_))));
+            prop_assert!(matches!(err, ParserError::Identifier(_)));
         }
 
         #[test]
@@ -310,9 +312,11 @@ mod test {
     #[test]
     fn test_zero_number_error() {
         let mut lexer = Lexer::new("0");
-        let result = lexer.next_token();
+        let err_at_pos = lexer.next_token().unwrap_err();
+        let err = err_at_pos.err();
 
-        assert!(matches!(result, Err(ParserError::ZeroValue)));
+        assert!(matches!(err_at_pos, ParserError::AtPosition(0, _)));
+        assert!(matches!(err, ParserError::ZeroValue))
     }
 
     #[test]
