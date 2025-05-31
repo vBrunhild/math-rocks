@@ -18,9 +18,6 @@ pub enum ParserError {
     #[error("Invalid identifier: {0}")]
     Identifier(String),
 
-    #[error("Division by zero")]
-    ZeroDiv,
-
     #[error("Invalid roll expression: {0}")]
     RollExpr(String),
 
@@ -28,7 +25,19 @@ pub enum ParserError {
     RollError(#[from] Box<RollError>),
 
     #[error("Input string is empty")]
-    Empty
+    Empty,
+
+    #[error("Parenthesis was not closed")]
+    UnclosedParenthesis,
+
+    #[error("Unexpected dice expression, expected literal number, got {0}")]
+    UnexpectedDiceExpression(String),
+
+    #[error("Unexpected prefix: {0}")]
+    UnexpectedPrefix(String),
+
+    #[error("Unexpected infix: {0}")]
+    UnexpectedInfix(String),
 }
 
 impl ParserError {
