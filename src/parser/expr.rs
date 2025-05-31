@@ -274,12 +274,14 @@ mod tests {
                         BinaryOperator::Multiply
                     ]),
                     inner.clone(),
-                    inner
+                    inner.clone()
                 ).prop_map(|(op, left, right)| Expr::BinaryOperator {
                     op,
                     left: Box::new(left),
                     right: Box::new(right)
                 }),
+
+                inner
             ]
         })
     }
