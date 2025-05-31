@@ -1,7 +1,7 @@
 use crate::Error as RollError;
 
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum ParserError {
     #[error("At position {0} - {1}")]
     AtPosition(usize, Box<ParserError>),

@@ -1,7 +1,7 @@
 use crate::parser::ParserError as ParserError;
 
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum Error {
     #[error("Invalid roll: {0}")]
     InvalidRoll(String),
