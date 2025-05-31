@@ -39,6 +39,13 @@ pub(crate) fn parenthesized_strategy(inner: impl Strategy<Value = String>) -> im
     inner.prop_map(|expr| format!("({})", expr))
 }
 
+pub(crate) fn unary_operation_strategy(
+    operand_strategy: impl Strategy<Value = String>
+) -> impl Strategy<Value = String> {
+    (prop_oneof![Just("+"), Just("-")], operand_strategy)
+        .prop_map(|(op, operand)| format!("{op} {operand}"))
+}
+
 pub(crate) fn binary_operation_strategy(
     left: impl Strategy<Value = String>,
     right: impl Strategy<Value = String>
@@ -60,7 +67,9 @@ pub(crate) fn dice_expression_strategy() -> impl Strategy<Value = String> {
     leaf.prop_recursive(4, 32, 10, |inner| {
         prop_oneof![
             parenthesized_strategy(inner.clone()),
-            binary_operation_strategy(inner.clone(), inner),
+            unary_operation_strategy(inner.clone()),
+            binary_operation_strategy(inner.clone(), inner.clone()),
+            inner
         ]
     })
 }
