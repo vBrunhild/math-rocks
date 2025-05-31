@@ -89,7 +89,7 @@ impl Parser {
                 let expr = self.parse_tokens(Precedence::Lowest)?;
 
                 if self.peek != Token::RightParenthesis {
-                    return Err(ParserError::RollExpr("Expected closing parenthesis".into()));
+                    return Err(ParserError::UnclosedParenthesis);
                 }
 
                 self.next_token()?;
@@ -97,12 +97,11 @@ impl Parser {
             },
 
             other => {
-                let msg = match other {
-                    Token::Dice => "dice expressions need number literal before 'd'\n✕ d6\n✓ 1d6".into(),
-                    _ => format!("Unexpected expression: {:?}", other)
-                };
-
-                Err(ParserError::RollExpr(msg))
+                let token = format!("{other:?}");
+                match (other, self.peek) {
+                    (Token::Dice, _) | (_, Token::Dice) => Err(ParserError::UnexpectedDiceExpression(token)),
+                    _ => Err(ParserError::UnexpectedPrefix(token))
+                }
             }
         }
     }
@@ -111,7 +110,7 @@ impl Parser {
         match self.current {
             Token::Dice => self.parse_dice(expr),
             Token::Plus | Token::Minus | Token::Multiply | Token::Divide => self.parse_binary_op(expr),
-            other => Err(ParserError::RollExpr(format!("Unexpected infix token: {:?}", other)))
+            other => Err(ParserError::UnexpectedInfix(format!("{other:?}")))
         }
     }
 
@@ -126,19 +125,19 @@ impl Parser {
             Token::Minus => Ok(Expr::sub(left, right)),
             Token::Multiply => Ok(Expr::mul(left, right)),
             Token::Divide => Ok(Expr::div(left, right)),
-            other => Err(ParserError::RollExpr(format!("Unexpected binary operation token: {:?}", other)))
+            other => unreachable!("{other:?}")
         }
     }
 
     fn parse_dice(&mut self, count_expr: Expr) -> Result<Expr> {
         let count = match count_expr {
             Expr::Literal(n) => n,
-            other => return Err(ParserError::RollExpr(format!("Unexpected dice count expression: {:?}", other)))
+            other => return Err(ParserError::UnexpectedDiceExpression(format!("{other:?}")))
         };
 
         let size = match self.peek {
             Token::Number(size) => size,
-            other => return Err(ParserError::RollExpr(format!("Unexpected dice size expression: {:?}", other)))
+            other => return Err(ParserError::UnexpectedDiceExpression(format!("{other:?}")))
         };
 
         self.next_token()?;
@@ -174,7 +173,7 @@ impl Parser {
                     Token::KeepLowest => Ok(Mode::kl(n)),
                     Token::DropHighest => Ok(Mode::dh(n)),
                     Token::DropLowest => Ok(Mode::dl(n)),
-                    other => Err(ParserError::RollExpr(format!("Unexpected dice mode expression: {:?}", other)))
+                    other => unreachable!("{other:?}")
                 }
             },
             _ => Ok(Mode::None)
