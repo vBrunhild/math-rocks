@@ -1,0 +1,21 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 380d7264fd1bc5faab754f41d5e78d06418b3775ba850e37fd5c388a819208a1 # shrinks to input = "[ \\t\\n]+"
+cc 0e922914ce0307c075429d53f3a6a58cc96a6200de10b0f28b222ef20ef17f38 # shrinks to count = 1, size = 1, mode = "kh"
+cc e88d11c1477e0d6e872f594a2b786c6e9223d650e86cbbaaefbc483bd1536c43 # shrinks to valid_expr = "1d1kh + 1"
+cc 466aafabb43a1a5fb6606465777407a5f0cfd554d849811e295e7a8b351f2664 # shrinks to a = 1, b = 1, c = 1
+cc 6714c6ef4417ad002fea6db18a70ad156f30a25c3358d9c0f10129764ba8ba72 # shrinks to a = 99, b = 2, c = 99
+cc 298a5898b1bf725e723a762027aab0f5e6cfb93578c72b3139b3fc9d63a4b53d # shrinks to a = 0, b = 0, c = 0
+cc 486529ab66e31b05c7c392376610a1c336e1e8fee639ef406465252b20050972 # shrinks to current = LeftParenthesis, peek = Number(1)
+cc 51ab2d22816d26be17088dc083a25c05e162608703287874e39a15d2225d56e4 # shrinks to current = LeftParenthesis, peek = Dice
+cc bbeaed1efe4e8372b11fbda73fdd0c2761f95fa0da5ed3d72f985773aef1dbc0 # shrinks to current = LeftParenthesis, peek = Plus
+cc c7f15f55c1594ec306c826553e325f1671745b7690cc64d9b5fd6f5baa6bf2e8 # shrinks to current = LeftParenthesis, peek = Eof
+cc c010f1aa22edce18ad874e542d0e82e76722dd8787285be7eb330c0e468576ac # shrinks to current = Dice, peek = Number(1)
+cc 5d32f0817b7066f572ba99a998a20e1ea95e496d5fc30858f221f74ba8cd316c # shrinks to current = Multiply, peek = Dice
+cc 136376141b137fef1040f4b9daa1e0c709904f312a18ce8dcd67606747048356 # shrinks to left = Literal(1), current = Plus, peek = LeftParenthesis
+cc 8f6f77921bb9315bf6eeb80e5710e1d52795bdd2b8395b6007f2084c2f5e347b # shrinks to left = Literal(1), current = Plus, peek = Dice
+cc d152f75a86cf93de42f56a7c115714282bd8a895220a01c3a0ba5941be075c0a # shrinks to left = Literal(1), current = LeftParenthesis, peek = Dice

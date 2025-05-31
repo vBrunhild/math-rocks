@@ -201,5 +201,225 @@ pub fn parse(input: &str) -> std::result::Result<crate::EvaluationResult, Parser
 mod test {
     use proptest::prelude::*;
     use super::*;
+    use crate::parser::str_test_strategies::*;
+    use crate::roll_test_strategies::roll_strategy;
 
+    fn token_strategy() -> impl Strategy<Value = Token> {
+        prop_oneof![
+            (1u16..=100).prop_map(Token::Number),
+            Just(Token::Dice),
+            Just(Token::Plus),
+            Just(Token::Minus),
+            Just(Token::Multiply),
+            Just(Token::Divide),
+            Just(Token::LeftParenthesis),
+            Just(Token::RightParenthesis),
+            Just(Token::KeepHighest),
+            Just(Token::KeepLowest),
+            Just(Token::DropHighest),
+            Just(Token::DropLowest),
+            Just(Token::Eof),
+        ]
+    }
+
+    proptest! {
+        #[test]
+        fn test_precedence_of_token(token in token_strategy()) {
+            let precedence = Precedence::of_token(&token);
+
+            match token {
+                Token::Plus | Token::Minus => prop_assert_eq!(precedence, Precedence::Sum),
+                Token::Multiply | Token::Divide => prop_assert_eq!(precedence, Precedence::Product),
+                Token::Dice => prop_assert_eq!(precedence, Precedence::Dice),
+                _ => prop_assert_eq!(precedence, Precedence::Lowest),
+            }
+        }
+
+        #[test]
+        fn test_precedence_consistency(
+            a in -100i32..=100,
+            b in -100i32..=100,
+            c in -100i32..=100
+        ) {
+            if a == 0 || b == 0 || c == 0 { return Ok(()) };
+
+            let expected1 = a + b * c;
+            let expected2 = a * b + c;
+
+            let expr1 = format!("{a} + {b} * {c}");
+            let expr2 = format!("{a} * {b} + {c}");
+
+            let result1 = parse(&expr1);
+            let result2 = parse(&expr2);
+
+            prop_assert!(result1.is_ok());
+            prop_assert!(result2.is_ok());
+
+            if let (Ok(r1), Ok(r2)) = (result1, result2) {
+                if a != 0 && b != 0 && c != 0 {
+                    prop_assert_eq!(r1.value, expected1);
+                    prop_assert_eq!(r2.value, expected2);
+                }
+            }
+        }
+
+        #[test]
+        fn test_peek_precedence(
+            n1 in 1u16..=100,
+            n2 in 1u16..=100,
+            op in prop::sample::select(&[
+                (Token::Plus, "+"),
+                (Token::Minus, "-"),
+                (Token::Multiply, "*"),
+                (Token::Divide, "/")
+            ])
+        ) {
+            let (token, token_str) = op;
+            let input = format!("{n1} {token_str} {n2}");
+            if let Ok(parser) = Parser::new(&input) {
+                let precedence = parser.peek_precedence();
+                prop_assert_eq!(precedence, Precedence::of_token(&token));
+            }
+        }
+
+        #[test]
+        fn test_parse_prefix(current in token_strategy(), peek in token_strategy()) {
+            let mut parser = Parser { lexer: Lexer::new(""), current, peek };
+            let result = parser.parse_prefix();
+
+            match (current, peek) {
+                (Token::Number(_), _) =>
+                    prop_assert!(matches!(result, Ok(Expr::Literal(_))), "result = {result:?}"),
+
+                (Token::Plus | Token::Minus, Token::Number(_)) =>
+                    prop_assert!(matches!(result, Ok(Expr::UnaryOperator { .. })), "result = {result:?}"),
+
+                (_, Token::Dice) | (Token::Dice, _) =>
+                    prop_assert!(matches!(result, Err(ParserError::UnexpectedDiceExpression(_))), "result = {result:?}"),
+
+                (Token::LeftParenthesis, Token::Number(_)) =>
+                    prop_assert!(matches!(result, Err(ParserError::UnclosedParenthesis)), "result = {result:?}"),
+
+                _ => prop_assert!(matches!(result, Err(ParserError::UnexpectedPrefix(_))), "result = {result:?}")
+            }
+        }
+
+        #[test]
+        fn test_parse_infix(
+            left in (1u16..=100).prop_map(Expr::Literal),
+            current in token_strategy(),
+            peek in token_strategy()
+        ) {
+            let mut parser = Parser { lexer: Lexer::new("777"), current, peek };
+            let result = parser.parse_infix(left);
+
+            match (current, peek) {
+                (Token::Dice, Token::Number(_)) =>
+                    prop_assert!(result.is_ok(), "result = {result:?}"),
+                                
+                (Token::Dice, _) | (_, Token::Dice) =>
+                    prop_assert!(result.is_err(), "result = {result:?}"),
+
+                (Token::Plus | Token::Minus | Token::Multiply | Token::Divide, Token::Number(_)) =>
+                    prop_assert!(matches!(result, Ok(Expr::BinaryOperator { .. })), "result = {result:?}"),
+
+                (Token::Plus | Token::Minus | Token::Multiply | Token::Divide, Token::Plus | Token::Minus) =>
+                    prop_assert!(matches!(result, Ok(Expr::BinaryOperator { .. })), "result = {result:?}"),                
+
+                (Token::Plus | Token::Minus | Token::Multiply | Token::Divide, Token::LeftParenthesis) =>
+                    prop_assert!(matches!(result, Err(ParserError::UnclosedParenthesis)), "result = {result:?}"),
+
+                (Token::Plus | Token::Minus | Token::Multiply | Token::Divide, _) =>
+                    prop_assert!(matches!(result, Err(ParserError::UnexpectedPrefix(_))), "result = {result:?}"),
+
+                _ => prop_assert!(matches!(result, Err(ParserError::UnexpectedInfix(_))), "result = {result:?}")
+            }
+        }
+
+        #[test]
+        fn test_literal_expression(value in -1000i32..=1000) {
+            if value == 0 { return Ok(()) };
+            let mut parser = Parser::new(&value.to_string()).unwrap();
+            let expr = parser.parse().unwrap();
+            let evaluation = expr.evaluate();
+            prop_assert_eq!(value, evaluation.value)
+        }
+
+        #[test]
+        fn test_complex_dice_expression(expr_str in dice_expression_strategy()) {
+            let mut parser = Parser::new(&expr_str).unwrap();
+
+            let expr = match parser.parse() {
+                Ok(ex) => ex,
+                Err(err) => panic!("{err}")
+            };
+
+            let _result = expr.evaluate();
+        }
+
+        #[test]
+        fn test_parse_dice(
+            value in 1u16..=100,
+            other_expr in roll_strategy(),
+            token in token_strategy()
+        ) {
+            let mut parser = Parser { lexer: Lexer::new(""), current: token, peek: token };
+
+            let result_ok = parser.parse_dice(value.into());
+            match token {
+                Token::Number(_) => prop_assert!(result_ok.is_ok()),
+                _ => prop_assert!(matches!(result_ok.unwrap_err(), ParserError::UnexpectedDiceExpression(_)))
+            }
+
+            let result_err = parser.parse_dice(other_expr.into());
+            prop_assert!(matches!(result_err.unwrap_err(), ParserError::UnexpectedDiceExpression(_)));
+        }
+
+        #[test]
+        fn test_parse_to_expr_function(valid_expr in dice_expression_strategy()) {
+            let result = parse_to_expr(&valid_expr);
+            prop_assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_parse_function(valid_expr in dice_expression_strategy()) {
+            let result = parse(&valid_expr);
+            prop_assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_dice_without_mode(count in 1u16..=100, size in 1u16..=100) {
+            let expr = format!("{count}d{size}");
+            let result = parse(&expr);
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_dice_with_default_mode_value(
+            count in 1u16..=100,
+            size in 1u16..=100,
+            mode in prop::sample::select(&["kh", "kl", "dh", "dl"])
+        ) {
+            let expr = format!("{count}d{size}{mode}");
+            let result = parse(&expr);
+
+            if count == 1 {
+                assert!(result.is_err())
+            } else {
+                assert!(result.is_ok());
+            }
+        }
+
+        #[test]
+        fn test_edge_case_white_space(input in "[ \\t\\n]+") {
+            let result = Parser::new(&input);
+            assert!(matches!(result, Err(ParserError::Empty)))
+        }
+    }
+
+    #[test]
+    fn test_edge_case_empty() {
+        let result = Parser::new("");
+        assert!(matches!(result, Err(ParserError::Empty)))
+    }
 }
