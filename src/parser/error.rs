@@ -18,9 +18,6 @@ pub enum ParserError {
     #[error("Invalid identifier: {0}")]
     Identifier(String),
 
-    #[error("Invalid roll expression: {0}")]
-    RollExpr(String),
-
     #[error("Roll error - {0}")]
     RollError(#[from] Box<RollError>),
 
@@ -75,7 +72,6 @@ mod test {
             Just(ParserError::Token('a')),
             Just(ParserError::ZeroValue),
             Just(ParserError::Identifier("id".into())),
-            Just(ParserError::RollExpr("expr".into())),
             Just(ParserError::Empty),
             Just(ParserError::UnclosedParenthesis),
             Just(ParserError::UnexpectedDiceExpression("dice".into())),
