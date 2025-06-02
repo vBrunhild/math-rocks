@@ -3,39 +3,74 @@ use rand::Rng;
 use crate::Error;
 
 
+/// Specifies a modification rule to apply to a pool of dice rolls,
+/// such as keeping or dropping a certain number of the highest or lowest dice.
+///
+/// This is used to implement common dice notation modifiers like "keep highest 1" (kh1),
+/// "drop lowest 2" (dl2), etc.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Mode {
-    Keep { highest: bool, n: u16 },
-    Drop { highest: bool, n: u16 },
+    /// Indicates that a certain number of dice should be kept, either the highest or the lowest.
+    Keep {
+        /// If `true`, the `n` highest dice are kept.
+        /// If `false`, the `n` lowest dice are kept.
+        highest: bool,
+        /// The number of dice to keep.
+        n: u16
+    },
+
+    /// Indicates that a certain number of dice should be dropped,
+    /// either the highest or the lowest.
+    Drop {
+        /// If `true`, the `n` highest dice are dropped.
+        /// If `false`, the `n` lowest dice are dropped.
+        highest: bool,
+        /// The number of dice to drop.
+        n: u16,
+    },
+
+    /// Represents no modification, all dice rolled are considered.
     #[default]
     None
 }
 
 impl Mode {
+    /// Creates a [`Mode::Keep`] mode to keep the `n` highest dice.
     pub fn kh(n: u16) -> Self {
         Mode::Keep { highest: true, n }
     }
 
+    /// Creates a [`Mode::Keep`] mode to keep the `n` lowest dice.
     pub fn kl(n: u16) -> Self {
         Mode::Keep { highest: false, n }
     }
 
+    /// Creates a [`Mode::Drop`] mode to keep the `n` highest dice.
     pub fn dh(n: u16) -> Self {
         Mode::Drop { highest: true, n }
     }
 
+    /// Creates a [`Mode::Drop`] mode to keep the `n` lowest dice.
     pub fn dl(n: u16) -> Self {
         Mode::Drop { highest: false, n }
     }
 
-    pub fn validate_non_zero(self) -> Result<Self, Error> {
+    /// Validates that if the mode is [`Mode::Keep`] or [`Mode::Drop`], the associated `n` value is not zero.
+    ///
+    /// This method is useful for ensuring that a mode configuration is sensible before
+    /// applying it to a dice roll, as keeping or dropping zero dice is usually not meaningful.
+    ///
+    /// # Errors
+    /// Returns [`Err(crate::error::Error::ZeroValue)`] if the mode has an `n` and `n == 0`
+    fn validate_non_zero(self) -> Result<Self, Error> {
         match self {
             Mode::Keep { n, .. } | Mode::Drop { n , .. } if n == 0 => Err(Error::ZeroValue),
             _ => Ok(self)
         }
     }
 
+    /// If Mode has a `n` associated such as [`Mode::Keep`] or [`Mode::Drop`] returns `Some(&n)` else returns `None`.
     pub fn value(&self) -> Option<&u16> {
         match self {
             Mode::Keep { n, .. } | Mode::Drop { n , .. } => Some(n),
@@ -57,14 +92,24 @@ impl Display for Mode {
 }
 
 
+/// Represents the outcome of a single die roll within a larger dice pool,
+/// indicating whether the die's value was kept or dropped according to
+/// modifiers keep/drop highest/lowest.
+///
+/// It's useful for displaying individual die results and understanding how
+/// the final sum was calculated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RollValue {
+    /// The die's value was kept and contributes to the final sum.
     Kept(u16),
+    /// The die's value was dropped and does not contribute to the final sum.
     Dropped(u16)
 }
 
 impl RollValue {
+    /// If the [`RollValue`] is [`RollValue::Kept`], this method returns `Some(u16)`.
+    /// Otherwise (if it was [`RollValue::Dropped`]), it returns `None`.
     pub fn kept(self) -> Option<u16> {
         match self {
             RollValue::Kept(value) => Some(value),
@@ -72,6 +117,8 @@ impl RollValue {
         }
     }
 
+    /// If the [`RollValue`] is [`RollValue::Dropped`], this method returns `Some(u16)`.
+    /// Otherwise (if it was [`RollValue::Kept`]), it returns `None`.
     pub fn dropped(self) -> Option<u16> {
         match self {
             RollValue::Dropped(value) => Some(value),
@@ -81,6 +128,12 @@ impl RollValue {
 }
 
 
+/// Represents a dice roll configuration, including the number of dice,
+/// the number of sides on each die, and any modifiers (like keep/drop).
+///
+/// This struct is typically created using [`Roll::builder()`] or the [`crate::roll!`] macro.
+/// Once configured, you can use the [`Roll::roll()`] method to simulate the dice roll
+/// and get a [`RollResult`].
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Roll {
@@ -90,10 +143,47 @@ pub struct Roll {
 }
 
 impl Roll {
+    /// Creates a new [`RollBuilder`] to construct a `Roll` instance.
+    /// This is the primary way to start defining a dice roll configuration.
+    ///
+    /// # Arguments
+    /// * `size`: The number of sides for each die in the roll (e.g., 6 for a d6, 20 for a d20).
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Mode};
+    ///
+    /// let roll = Roll::builder(20)    // Creates a builder for a d20
+    ///              .count(3)          // We want to roll 3d20
+    ///              .mode(Mode::kh(1)) // Keep the highest 1
+    ///              .build()
+    ///              .unwrap();
+    ///
+    /// assert_eq!(format!("{}", roll), "3d20kh1");
+    /// ```
     pub fn builder(size: u16) -> RollBuilder {
         RollBuilder::new(size)
     }
 
+    /// Simulates the dice roll according to the configuration.
+    /// Generates random values for each die, then applies the specified [`Mode`]
+    /// to determine which dice are kept or dropped.
+    ///
+    /// # Returns
+    /// A [`RollResult`] containing the outcome of each individual die.
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::Roll;
+    ///
+    /// let roll = Roll::builder(6).count(3).build().unwrap(); // 3d6
+    /// let result = roll.roll();
+    ///
+    /// // The result will contain 3 RollValue instances, all Kept by default.
+    /// assert_eq!(result.len(), 3);
+    /// println!("Rolled 3d6: {:?}", result);
+    /// println!("Total: {}", result.total());
+    /// ```
     pub fn roll(&self) -> RollResult {
         let values = self.generate_values();
 
@@ -107,6 +197,23 @@ impl Roll {
         }
     }
 
+    /// Calculates the minimum possible sum for this dice roll configuration.
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Mode};
+    ///use math_rocks::$1;
+    /// // 3d20 (no mode): minimun possible values are 1 + 1 + 1 = 3
+    /// let roll = Roll::builder(20).count(3).build().unwrap();
+    /// assert_eq!(roll.min(), 3);
+    ///use math_rocks::$1;
+    /// // 3d20kh1: only the highest rolled value will be kept, so the minimun possible value is 1
+    /// let roll = Roll::builder(20).count(3).mode(Mode::kh(1)).build().unwrap();
+    /// assert_eq!(roll.min(), 1);
+    ///use math_rocks::$1;
+    /// // 3d20dl1: the lowest rolled value will be dropped, so the minimun possible value is 1 + 1 = 2
+    /// let roll = Roll::builder(20).count(3).mode(Mode::dl(1)).build().unwrap();
+    /// assert_eq!(roll.min(), 2);
+    /// ```
     pub const fn min(&self) -> u16 {
         match self.mode {
             Mode::None => self.count,
@@ -115,6 +222,23 @@ impl Roll {
         }
     }
 
+    /// Calculates the maximum possible sum for this dice roll configuration.
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Mode};
+    ///use math_rocks::$1;
+    /// // 3d20 (no mode): maximum possible values are 20 + 20 + 20 = 60
+    /// let roll = Roll::builder(20).count(3).build().unwrap();
+    /// assert_eq!(roll.max(), 60);
+    ///use math_rocks::$1;
+    /// // 3d20kh1: only the highest rolled value will be kept, so the maximum possible value is 20
+    /// let roll = Roll::builder(20).count(3).mode(Mode::kh(1)).build().unwrap();
+    /// assert_eq!(roll.max(), 20);
+    ///use math_rocks::$1;
+    /// // 3d20dl1: the lowest rolled value will be dropped, so the maximum possible value is 20 + 20 = 40
+    /// let roll = Roll::builder(20).count(3).mode(Mode::dl(1)).build().unwrap();
+    /// assert_eq!(roll.max(), 40);
+    /// ```
     pub const fn max(&self) -> u16 {
         match self.mode {
             Mode::None => self.size * self.count,
@@ -123,14 +247,42 @@ impl Roll {
         }
     }
 
+    /// Calculates the average value that will be obtained in this roll.
+    /// This provides a simple statistical average for the roll configuration.
+    ///use math_rocks::$1;
+    /// # Examples
+    /// ```
+    /// use math_rocks::Roll;
+    ///
+    /// // For 1d6, min = 1, max = 6, avg = (1 + 6) / 2 = 3.5
+    /// let roll = Roll::builder(6).build().unwrap();
+    /// assert_eq!(roll.avg(), 3.5);
+    /// ```
     pub const fn avg(&self) -> f32 {
         (self.min() as f32 + self.max() as f32) / 2.0
     }
 
+    /// Returns a tuple containing the minimum and maximum possible sums for the roll.
+    /// Equivalent to `(self.min(), self.max())`.
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::Roll;
+    ///
+    /// let roll = Roll::builder(10).count(2).build().unwrap(); // 2d10
+    /// assert_eq!(roll.possible_values(), (2, 20));
+    /// ```
     pub const fn possible_values(&self) -> (u16, u16) {
         (self.min(), self.max())
     }
 
+    /// Generates a vector of random die values based on `count` and `size`.
+    /// This method is used internally by [`Roll::roll()`] before applying any [`Mode`].
+    /// It uses `rand::thread_rng()` for randomness.
+    ///
+    /// # Returns
+    /// A `Vec<u16>` where each element is a random integer between 1 and `self.size` (inclusive).
+    /// The length of the vector is `self.count`.
     pub fn generate_values(&self) -> Vec<u16> {
         let mut rng = rand::rng();
 
@@ -141,12 +293,32 @@ impl Roll {
 }
 
 impl Display for Roll {
+    /// Formats the `Roll` configuration as a standard dice notation string.
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Mode};
+    ///use math_rocks::$1;
+    /// let roll = Roll::builder(20).build().unwrap();
+    /// assert_eq!(format!("{roll}"), "1d20");
+    ///use math_rocks::$1;
+    /// let roll = Roll::builder(4).count(3).build().unwrap();
+    /// assert_eq!(format!("{roll}"), "3d4");
+    ///use math_rocks::$1;
+    /// let roll = Roll::builder(6).count(2).mode(Mode::dl(1)).build().unwrap();
+    /// assert_eq!(format!("{roll}"), "2d6dl1");
+    /// ```
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}d{}{}", self.count, self.size, self.mode)
     }
 }
 
 
+/// A builder for creating [`Roll`] instances with a fluent API.
+///
+/// Start with [`Roll::builder()`] then chain methods
+/// like [`RollBuilder::count()`] and [`RollBuilder::mode()`], and finally call
+/// [`RollBuilder::build()`] to get a `Result<Roll, Error>`.
 #[derive(Debug, Clone)]
 pub struct RollBuilder {
     size: u16,
@@ -155,6 +327,11 @@ pub struct RollBuilder {
 }
 
 impl RollBuilder {
+    /// Creates a new `RollBuilder` with a given die size.
+    /// The initial roll count defaults to 1 and the mode defaults to [`Mode::None`].
+    ///
+    /// # Arguments
+    /// * `size`: The number of sides for each die.
     fn new(size: u16) -> Self {
         Self {
             size,
@@ -163,16 +340,83 @@ impl RollBuilder {
         }
     }
 
+    /// Sets the number of dice to roll.
+    ///
+    /// # Arguments
+    /// * `count`: The number of dice.
     pub fn count(mut self, count: u16) -> Self {
         self.count = count;
         self
     }
 
+    /// Sets the mode for the dice roll.
+    ///
+    /// # Arguments
+    /// * `mode`: The [`Mode`] to apply (e.g., `Mode::kh(1)`).
     pub fn mode(mut self, mode: Mode) -> Self {
         self.mode = mode;
         self
     }
 
+    /// Sets the mode for the dice roll to [`Mode::Keep`] highest n.
+    ///
+    /// # Arguments
+    /// * `n`: number of dice to keep.
+    pub fn kh(mut self, n: u16) -> Self {
+        self.mode = Mode::Keep { highest: true, n };
+        self
+    }
+
+    /// Sets the mode for the dice roll to [`Mode::Keep`] lowest n.
+    ///
+    /// # Arguments
+    /// * `n`: number of dice to keep.
+    pub fn kl(mut self, n: u16) -> Self {
+        self.mode = Mode::Keep { highest: false, n };
+        self
+    }
+
+    /// Sets the mode for the dice roll to [`Mode::Drop`] highest n.
+    ///
+    /// # Arguments
+    /// * `n`: number of dice to drop.
+    pub fn dh(mut self, n: u16) -> Self {
+        self.mode = Mode::Drop { highest: true, n };
+        self
+    }
+
+    /// Sets the mode for the dice roll to [`Mode::Drop`] lowest n.
+    ///
+    /// # Arguments
+    /// * `n`: number of dice to drop.
+    pub fn dl(mut self, n: u16) -> Self {
+        self.mode = Mode::Drop { highest: false, n };
+        self
+    }
+
+    /// Finalizes the configuration and attempts to build a [`Roll`] instance.
+    ///
+    /// # Errors
+    /// - Returns `Err(Error::ZeroValue)` if `size` or `count` is 0.
+    /// - Returns `Err(Error::ZeroValue)` if the `mode` involves keeping or dropping zero dice.
+    /// - Returns `Err(Error::InvalidRoll)` if the `mode` attempts to keep or drop
+    ///   a number of dice equal to or greater than the total `count` in a way
+    ///   that is invalid (e.g., keeping all dice when `Mode::None` should be used,
+    ///   or dropping all dice).
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Mode, Error};
+    ///
+    /// let roll_result = Roll::builder(6).count(3).build();
+    /// assert!(roll_result.is_ok());
+    ///
+    /// let invalid_roll_result = Roll::builder(0).count(1).build();
+    /// assert_eq!(invalid_roll_result, Err(Error::ZeroValue));
+    ///
+    /// let invalid_mode_result = Roll::builder(6).count(3).mode(Mode::Keep { highest: true, n: 3 }).build();
+    /// assert!(matches!(invalid_mode_result, Err(Error::InvalidRoll(_))));
+    /// ```
     pub fn build(self) -> Result<Roll, Error> {
         if self.size == 0 || self.count == 0 {
             return Err(Error::ZeroValue);
@@ -197,15 +441,36 @@ impl RollBuilder {
 }
 
 
+/// Represents the result of a dice roll, containing a list of individual [`RollValue`]s.
+///
+/// This struct provides methods to inspect the outcome, such as calculating the
+/// total sum of kept dice. It dereferences to `Vec<RollValue>` for direct slice/vector operations.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RollResult(Vec<RollValue>);
 
 impl RollResult {
+    /// Creates a new `RollResult` from a vector of [`RollValue`]s.
+    ///
+    /// This is typically used internally when constructing results after a roll.
     pub fn new(rolls: Vec<RollValue>) -> Self {
         Self(rolls)
     }
 
+    /// Calculates the sum of all dice values that were [`RollValue::Kept`].
+    /// Dropped dice do not contribute to this total.
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{RollResult, RollValue};
+    ///
+    /// let result = RollResult::new(vec![
+    ///     RollValue::Kept(5),
+    ///     RollValue::Dropped(1),
+    ///     RollValue::Kept(3),
+    /// ]);
+    /// assert_eq!(result.total(), 8); // 5 + 3
+    /// ```
     pub fn total(&self) -> u32 {
         self.iter()
             .flat_map(|roll| match roll {
@@ -260,6 +525,41 @@ fn roll_result(highest: bool, n: u16, values: Vec<u16>) -> RollResult {
 }
 
 
+/// A macro for conveniently creating [`Roll`] instances.
+///
+/// # Syntax
+/// - `roll!(SIZE)`: Creates a roll for a single die of `SIZE` sides (e.g., `roll!(6)` for 1d6).
+/// - `roll!(SIZE, COUNT)`: Creates a roll for `COUNT` dice of `SIZE` sides (e.g., `roll!(10, 3)` for 3d10).
+/// - `roll!(SIZE, COUNT, MODE_FN)`: Creates a roll with a mode with n = 1.
+///   `MODE_FN` must be one of `kh`, `kl`, `dh`, `dl`.
+///   (e.g., `roll!(20, 4, kh)` for 4d20kh1).
+/// - `roll!(SIZE, COUNT, MODE_FN, N)`: Creates a roll with a mode with custom n.
+///   `MODE_FN` must be one of `kh`, `kl`, `dh`, `dl`.
+///   (e.g., `roll!(20, 4, kh, 1)` for 4d20kh1).
+///
+/// # Returns
+/// `Result<Roll, Error>` - The result of calling `RollBuilder::build()`.
+///
+/// # Examples
+/// ```
+/// use math_rocks::roll;
+///
+/// let r1d6 = roll!(6);
+/// assert!(r1d6.is_ok());
+/// assert_eq!(format!("{}", r1d6.unwrap()), "1d6");
+///
+/// let r3d10 = roll!(10, 3);
+/// assert!(r3d10.is_ok());
+/// assert_eq!(format!("{}", r3d10.unwrap()), "3d10");
+///
+/// let r4d20kh1 = roll!(20, 4, kh);
+/// assert!(r4d20kh1.is_ok());
+/// assert_eq!(format!("{}", r4d20kh1.unwrap()), "4d20kh1");
+///
+/// let r3d8dl2 = roll!(8, 3, dl, 2);
+/// assert!(r3d8dl2.is_ok());
+/// assert_eq!(format!("{}", r3d8dl2.unwrap()), "3d8dl2");
+/// ```
 #[macro_export]
 macro_rules! roll {
     ($size:literal) => {
