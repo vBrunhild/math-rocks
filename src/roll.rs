@@ -331,8 +331,8 @@ mod test {
             let keep_mode = Mode::Keep { highest, n };
             let drop_mode = Mode::Drop { highest, n };
 
-            prop_assert_eq!(keep_mode.value(), if n == 0 { Some(0) } else { Some(n) });
-            prop_assert_eq!(drop_mode.value(), if n == 0 { Some(0) } else { Some(n) });
+            prop_assert_eq!(keep_mode.value().copied(), if n == 0 { Some(0) } else { Some(n) });
+            prop_assert_eq!(drop_mode.value().copied(), if n == 0 { Some(0) } else { Some(n) });
             prop_assert_eq!(Mode::None.value(), None);
         }
 
@@ -440,7 +440,7 @@ mod test {
                     continue;
                 }
 
-                if let Some(n) = mode.value() {
+                if let Some(&n) = mode.value() {
                     if n == 0 {
                         prop_assert!(result.is_err());
                         continue;
@@ -511,7 +511,7 @@ mod test {
                 .count();
 
             prop_assert_eq!(kept_count, n as usize);
-            
+
             let dropped_count = result.iter()
                 .filter(|v| matches!(v, RollValue::Dropped(_)))
                 .count();
