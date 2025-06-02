@@ -36,9 +36,9 @@ impl Mode {
         }
     }
 
-    pub fn value(&self) -> Option<u16> {
+    pub fn value(&self) -> Option<&u16> {
         match self {
-            Mode::Keep { n, .. } | Mode::Drop { n , .. } => Some(*n),
+            Mode::Keep { n, .. } | Mode::Drop { n , .. } => Some(n),
             Mode::None => None
         }
     }
