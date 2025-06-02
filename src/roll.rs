@@ -263,20 +263,27 @@ fn roll_result(highest: bool, n: u16, values: Vec<u16>) -> RollResult {
 #[macro_export]
 macro_rules! roll {
     ($size:literal) => {
-        $crate::roll::Roll::builder($size)
+        $crate::Roll::builder($size)
             .build()
     };
 
     ($size:literal, $count:literal) => {
-        $crate::roll::Roll::builder($size)
+        $crate::Roll::builder($size)
             .count($count)
             .build()
     };
 
-    ($size:literal, $count:literal, $mode:ident, $n:literal) => {
-        $crate::roll::Roll::builder($size)
+    ($size:literal, $count:literal, $mode:ident) => {
+        $crate::Roll::builder($size)
             .count($count)
-            .mode($crate::roll::Mode::$mode($n))
+            .mode($crate::Mode::$mode(1))
+            .build()
+    };
+
+    ($size:literal, $count:literal, $mode:ident, $n:literal) => {
+        $crate::Roll::builder($size)
+            .count($count)
+            .mode($crate::Mode::$mode($n))
             .build()
     }
 }
