@@ -3,22 +3,76 @@ use std::fmt::Display;
 use crate::{Roll, RollResult};
 
 
+/// Represents an abstract syntax tree (AST) node for a dice expression.
+///
+/// An `Expr` can be a literal number, a dice roll configuration,
+/// a unary operation (like negation), or a binary operation (like addition or subtraction).
+/// This structure allows for recursive evaluation and analysis of complex dice expressions.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    /// A literal numeric value.
     Literal(u16),
+    /// A dice roll configuration using [`Roll`].
     Roll(Roll),
+    /// A unary operation (e.g., `-5`, `+ (2d6)`).
     UnaryOperator {
+        /// The unary operator (e.g., Plus, Minus).
         op: UnaryOperator,
-        operand: Box<Expr>
+        /// The operand expression.
+        operand: Box<Expr>,
     },
+    /// A binary operation (e.g., `1d6 + 5`, `(2d4) * 3`).
     BinaryOperator {
+        /// The binary operator (e.g., Add, Subtract, Multiply, Divide).
         op: BinaryOperator,
+        /// The left-hand side operand expression.
         left: Box<Expr>,
-        right: Box<Expr>
+        /// The right-hand side operand expression.
+        right: Box<Expr>,
     }
 }
 
 impl Expr {
+    /// Evaluates the expression, performing dice rolls and calculating the final numerical value.
+    ///
+    /// This method recursively traverses the expression tree:
+    /// - For [`Expr::Literal`], it returns the value.
+    /// - For [`Expr::Roll`], it performs the dice roll and returns its total.
+    /// - For [`Expr::UnaryOperator`] and [`Expr::BinaryOperator`], it evaluates the operand(s)
+    ///   and then applies the operator.
+    ///
+    /// All dice rolls performed during evaluation are collected.
+    ///
+    /// # Returns
+    /// An [`EvaluationResult`] containing the final calculated `value` and a `Vec`
+    /// of [`RollEvaluation`]s detailing each dice roll that occurred.
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Expr, UnaryOperator, BinaryOperator};
+    ///
+    /// // Example: 1d4 + 5
+    /// let roll_expr = Expr::Roll(Roll::builder(4).build().unwrap());
+    /// let five_expr = Expr::Literal(5);
+    /// let add_expr = Expr::BinaryOperator {
+    ///     op: BinaryOperator::Add,
+    ///     left: Box::new(roll_expr),
+    ///     right: Box::new(five_expr),
+    /// };
+    ///
+    /// let evaluation = add_expr.evaluate();
+    /// dbg!(evaluation);
+    ///
+    /// // Example: -(2)
+    /// let two_expr = Expr::Literal(2);
+    /// let neg_expr = Expr::UnaryOperator {
+    ///     op: UnaryOperator::Minus,
+    ///     operand: Box::new(two_expr),
+    /// };
+    /// let neg_evaluation = neg_expr.evaluate();
+    /// assert_eq!(neg_evaluation.value, -2);
+    /// assert!(neg_evaluation.rolls.is_empty());
+    /// ```
     pub fn evaluate(&self) -> EvaluationResult {
         match self {
             Expr::Literal(value) => EvaluationResult { value: *value as i32, rolls: Vec::new() },
@@ -53,6 +107,34 @@ impl Expr {
         }
     }
 
+    /// Calculates the minimum and maximum possible values this expression can yield.
+    ///
+    /// - For [`Expr::Literal`], min and max are the literal's value.
+    /// - For [`Expr::Roll`], it uses `roll.min()` and `roll.max()`.
+    /// - For [`Expr::UnaryOperator`], it applies the operator to the operand's min/max.
+    /// - For [`Expr::BinaryOperator`], it considers all four combinations of the operands'
+    ///   min/max values to find the overall min and max.
+    ///
+    /// # Returns
+    /// A tuple `(min, max)`.
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Expr, BinaryOperator};
+    ///
+    /// // 1d6 + 2
+    /// let roll_1d6 = Expr::Roll(Roll::builder(6).build().unwrap()); // min 1, max 6
+    /// let literal_2 = Expr::Literal(2); // min 2, max 2
+    /// let expr = Expr::add(roll_1d6, literal_2);
+    ///
+    /// assert_eq!(expr.possible_values(), (1 + 2, 6 + 2)); // (3, 8)
+    ///
+    /// // 2 * 1d4
+    /// let roll_1d4 = Expr::Roll(Roll::builder(4).build().unwrap()); // min 1, max 4
+    /// let expr_mul = Expr::mul(Expr::Literal(2), roll_1d4);
+    /// // Combinations: 2 * 1 = 2, 2 * 4 = 8. So min = 2, max = 8.
+    /// assert_eq!(expr_mul.possible_values(), (2, 8));
+    /// ```
     pub fn possible_values(&self) -> (i32, i32) {
         match self {
             Expr::Literal(value) => {
@@ -86,39 +168,91 @@ impl Expr {
         }
     }
 
+    /// Calculates the average of the minimum and maximum possible values of the expression.
+    /// This provides a simple statistical average for the expression's outcome.
+    /// 
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Roll, Expr};
+    ///
+    /// // For 1d6 + 1 (min 2, max 7), avg is (2 + 7) / 2 = 4.5
+    /// let expr = Expr::add(Roll::builder(6).build().unwrap(), 1);
+    /// assert_eq!(expr.avg(), 4.5);
+    /// ```
     pub fn avg(&self) -> f32 {
         let (min, max) = self.possible_values();
         (min as f32 + max as f32) / 2.0
     }
 
+    /// Helper function to create a `UnaryOperator` expression.
+    /// This is private as public construction is via `pos` and `neg`.
     fn unary_op<T: Into<Expr>>(op: UnaryOperator, operand: T) -> Self {
         Self::UnaryOperator { op, operand: Box::new(operand.into()) }
     }
 
+    /// Creates a unary plus expression (e.g., `+operand`).
+    ///
+    /// # Arguments
+    /// * `operand`: The expression to apply the unary plus to. Can be any type that implements `Into<Expr>`.
     pub fn pos<T: Into<Expr>>(operand: T) -> Self {
         Self::unary_op(UnaryOperator::Plus, operand)
     }
 
+    /// Creates a unary minus expression (e.g., `-operand`).
+    ///
+    /// # Arguments
+    /// * `operand`: The expression to negate. Can be any type that implements `Into<Expr>`.
     pub fn neg<T: Into<Expr>>(operand: T) -> Self {
         Self::unary_op(UnaryOperator::Minus, operand)
     }
 
+    /// Helper function to create a `BinaryOperator` expression.
+    /// This is private as public construction is via specific operator methods.
     fn binary_op<L: Into<Expr>, R: Into<Expr>>(op: BinaryOperator, left: L, right: R) -> Self {
         Self::BinaryOperator { op, left: Box::new(left.into()), right: Box::new(right.into()) }
     }
 
+    /// Creates an addition expression (`left + right`).
+    ///
+    /// # Arguments
+    /// * `left`: The left-hand operand.
+    /// * `right`: The right-hand operand.
+    /// 
+    /// Both can be any type that implements `Into<Expr>`.
     pub fn add<L: Into<Expr>, R: Into<Expr>>(left: L, right: R) -> Self {
         Self::binary_op(BinaryOperator::Add, left, right)
     }
 
+    /// Creates a subtraction expression (`left - right`).
+    ///
+    /// # Arguments
+    /// * `left`: The left-hand operand.
+    /// * `right`: The right-hand operand.
+    /// 
+    /// Both can be any type that implements `Into<Expr>`.
     pub fn sub<L: Into<Expr>, R: Into<Expr>>(left: L, right: R) -> Self {
         Self::binary_op(BinaryOperator::Subtract, left, right)
     }
 
+    /// Creates a multiplication expression (`left * right`).
+    ///
+    /// # Arguments
+    /// * `left`: The left-hand operand.
+    /// * `right`: The right-hand operand.
+    /// 
+    /// Both can be any type that implements `Into<Expr>`.
     pub fn mul<L: Into<Expr>, R: Into<Expr>>(left: L, right: R) -> Self {
         Self::binary_op(BinaryOperator::Multiply, left, right)
     }
 
+    /// Creates a division expression (`left / right`).
+    ///
+    /// # Arguments
+    /// * `left`: The left-hand operand.
+    /// * `right`: The right-hand operand.
+    /// 
+    /// Both can be any type that implements `Into<Expr>`.
+    /// Note: Division by zero in `evaluate` will result in `0`.
     pub fn div<L: Into<Expr>, R: Into<Expr>>(left: L, right: R) -> Self {
         Self::binary_op(BinaryOperator::Divide, left, right)
     }
@@ -137,6 +271,12 @@ impl From<u16> for Expr {
 }
 
 impl Display for Expr {
+    /// Formats the `Expr` into a string representation.
+    ///
+    /// - Literals are formatted as their number.
+    /// - Rolls are formatted using their `Display` implementation (e.g., "3d6kh1").
+    /// - Unary operators are formatted as `op<operand>` (e.g., "-5").
+    /// - Binary operators are formatted as `(<left> op <right>)` (e.g., "(1d6 + 5)").
     #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -150,13 +290,20 @@ impl Display for Expr {
 }
 
 
+/// Represents a unary operator (acting on a single operand).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnaryOperator {
+    /// Unary plus.
     Plus,
+    /// Unary minus.
     Minus,
 }
 
 impl UnaryOperator {
+    /// Applies the unary operator to the given integer value.
+    ///
+    /// - `Plus` returns the value unchanged.
+    /// - `Minus` returns the negation of the value.
     pub fn op(&self, value: i32) -> i32 {
         use UnaryOperator as Op;
         match self {
@@ -177,15 +324,25 @@ impl Display for UnaryOperator {
 }
 
 
+/// Represents a binary operator (acting on two operands).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinaryOperator {
+    /// Addition (`+`).
     Add,
+    /// Subtraction (`-`).
     Subtract,
+    /// Multiplication (`*`).
     Multiply,
-    Divide,
+    /// Division (`/`).
+    Divide
 }
 
 impl BinaryOperator {
+    /// Applies the binary operator to the given left and right integer values.
+    ///
+    /// Operations use saturating arithmetic (`saturating_add`, `saturating_sub`, `saturating_mul`)
+    /// to prevent overflow panics, clamping results to `i32::MIN` or `i32::MAX`.
+    /// Division by zero results in `0`.
     pub fn op(&self, left: i32, right: i32) -> i32 {
         use BinaryOperator as Op;
         match self {
@@ -210,23 +367,41 @@ impl Display for BinaryOperator {
 }
 
 
+/// Holds the result of evaluating an [`Expr`].
+///
+/// It contains the final numerical `value` and a [`Vec`] of all
+/// individual dice [`RollEvaluation`]s that occurred during the evaluation.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EvaluationResult {
+    /// The final integer value of the evaluated expression.
     pub value: i32,
+    /// A list of all dice rolls performed during the evaluation,
+    /// including their configuration, individual results, and total for that roll.
     pub rolls: Vec<RollEvaluation>
 }
 
 
+/// Contains detailed information about a single dice roll performed as part of an [`Expr`] evaluation.
+///
+/// This includes the original [`Roll`] configuration, the [`RollResult`] (individual die outcomes),
+/// and the `value` (total sum) of that specific roll.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RollEvaluation {
+    /// The [`Roll`] configuration that was evaluated.
     pub roll: Roll,
+    /// The outcome of the roll.
     pub result: RollResult,
+    /// The total numerical value obtained from this specific roll (sum of kept dice).
     pub value: i32
 }
 
 impl From<Roll> for RollEvaluation {
+    /// Converts a [`Roll`] configuration into a [`RollEvaluation`] by performing the roll.
+    ///
+    /// This involves calling `value.roll()` to get the `RollResult` and then
+    /// calculating its total.
     fn from(value: Roll) -> Self {
         let result = value.roll();
         let total = result.total();
