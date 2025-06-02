@@ -4,7 +4,6 @@ use crate::parser::{Lexer, Token, Expr};
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(u8)]
 enum Precedence {
     Lowest = 1,
     Sum = 2,
@@ -25,6 +24,11 @@ impl Precedence {
 }
 
 
+/// A Pratt parser for dice notation strings.
+///
+/// The parser takes a string input, tokenizes it using a [`Lexer`],
+/// and then constructs an abstract syntax tree ([`Expr`]) representing
+/// the parsed expression. It handles operator precedence and associativity.
 #[derive(Debug)]
 pub struct Parser {
     lexer: Lexer,
@@ -33,6 +37,26 @@ pub struct Parser {
 }
 
 impl Parser {
+    /// Creates a new `Parser` instance for the given input string..
+    ///
+    /// # Arguments
+    /// * `input`: The dice notation string to parse.
+    ///
+    /// # Errors
+    /// Errors returned are always wrapped with a [`ParserError::AtPosition`]
+    /// The wrapped error can be any other error of [`ParserError`]
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Parser, ParserError};
+    ///
+    /// let parser_result = Parser::new("1d6 + 3");
+    /// assert!(parser_result.is_ok());
+    /// dbg!(parser_result.unwrap()); // generated Expr
+    ///
+    /// let empty_parser_result = Parser::new("  ").unwrap_err();
+    /// assert!(matches!(empty_parser_result.err(), ParserError::Empty));
+    /// ```
     pub fn new(input: &str) -> Result<Self> {
         let mut lexer = Lexer::new(input);
         let current = lexer.next_token()?;
@@ -45,6 +69,31 @@ impl Parser {
         Ok(Self { lexer, current, peek })
     }
 
+    /// Parses the entire input string into an [`Expr`] (Abstract Syntax Tree).
+    ///
+    /// This is the main entry point for parsing after creating a `Parser` instance.
+    /// It starts parsing tokens with the lowest precedence.
+    ///
+    /// # Errors
+    /// Returns a `ParserError` if any syntax errors are encountered during parsing.
+    /// The error will be wrapped with positional information using [`ParserError::at_pos()`]
+    /// indicating where the error occurred in the input string.
+    /// 
+    /// Get a reference to the wrapped error with [`ParserError::err()`].
+    /// Get the position at which the error was found with [`ParserError::pos()`].
+    ///
+    /// # Examples
+    /// ```
+    /// use math_rocks::{Parser, ParserError};
+    ///
+    /// let mut parser = Parser::new("1 + 2").unwrap();
+    /// let expr = parser.parse().unwrap();
+    /// assert_eq!(format!("{expr}"), "(1 + 2)");
+    ///
+    /// let mut invalid_parser = Parser::new("1 +").unwrap();
+    /// let err = invalid_parser.parse().unwrap_err();
+    /// assert!(matches!(err.err(), ParserError::UnexpectedPrefix(_)))
+    /// ```
     pub fn parse(&mut self) -> Result<Expr> {
         self.parse_tokens(Precedence::Lowest)
             .map_err(|err| err.at_pos(self.lexer.position))
@@ -186,13 +235,71 @@ impl Parser {
 }
 
 
-pub fn parse_to_expr(input: &str) -> std::result::Result<Expr, ParserError> {
+/// Parses a dice notation string directly into an [`Expr`] (Abstract Syntax Tree).
+/// This is a convenience function that creates a [`Parser`] and calls its `parse` method.
+///
+/// # Arguments
+/// * `input`: The dice notation string to parse.
+///
+/// # Returns
+/// `Ok(Expr)` if parsing is successful.
+/// `Err(ParserError)` if any parsing errors occur, including positional information.
+///
+/// # Errors
+/// Returns a `ParserError` if any syntax errors are encountered during parsing.
+/// The error will be wrapped with positional information using [`ParserError::at_pos()`]
+/// indicating where the error occurred in the input string.
+/// 
+/// Get a reference to the wrapped error with [`ParserError::err()`].
+/// Get the position at which the error was found with [`ParserError::pos()`].
+/// 
+/// # Examples
+/// ```
+/// use math_rocks::parse_to_expr;
+///
+/// let expr_result = parse_to_expr("2d20kh + 5");
+/// assert!(expr_result.is_ok());
+/// dbg!(expr_result);
+/// ```
+pub fn parse_to_expr(input: &str) -> Result<Expr> {
     let mut parser = Parser::new(input)?;
     parser.parse()
 }
 
 
-pub fn parse(input: &str) -> std::result::Result<crate::EvaluationResult, ParserError> {
+/// Parses a dice notation string and immediately evaluates it.
+///
+/// This function first parses the input into an [`Expr`] using [`parse_to_expr`],
+/// and then calls [`Expr::evaluate()`] on the resulting AST.
+///
+/// # Arguments
+/// * `input`: The dice notation string to parse and evaluate.
+///
+/// # Returns
+/// `Ok(EvaluationResult)` if parsing and evaluation are successful.
+/// `Err(ParserError)` if any parsing errors occur.
+///
+/// # Errors
+/// Returns a `ParserError` if any syntax errors are encountered during parsing.
+/// The error will be wrapped with positional information using [`ParserError::at_pos()`]
+/// indicating where the error occurred in the input string.
+/// 
+/// Get a reference to the wrapped error with [`ParserError::err()`].
+/// Get the position at which the error was found with [`ParserError::pos()`].
+/// 
+/// # Examples
+/// ```
+/// use math_rocks::parse;
+///
+/// let eval_result = parse("2d6 + 3");
+///
+/// if let Ok(result) = eval_result {
+///     println!("Value: {}, Rolls: {:?}", result.value, result.rolls);
+///     assert!(result.value >= 5 && result.value <= 15);
+///     assert_eq!(result.rolls.len(), 1);
+/// }
+/// ```
+pub fn parse(input: &str) -> Result<crate::EvaluationResult> {
     Ok(parse_to_expr(input)?.evaluate())
 }
 
