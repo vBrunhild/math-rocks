@@ -1,3 +1,7 @@
+#![warn(missing_docs)]
+#![warn(clippy::missing_errors_doc)]
+
+
 #[cfg(test)]
 mod roll_test_strategies;
 
