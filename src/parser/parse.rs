@@ -197,8 +197,7 @@ impl Parser {
             Roll::builder(size)
                 .count(count)
                 .mode(mode)
-                .build()
-                .map_err(Box::new)?
+                .build()?
                 .into()
         )
     }

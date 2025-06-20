@@ -45,7 +45,7 @@ pub enum ParserError {
     /// that was encountered during a parsing step that might involve partial evaluation
     /// or validation of roll parameters.
     #[error("Roll error - {0}")]
-    RollError(#[from] Box<RollError>),
+    RollError(#[from] RollError),
 
     /// The input string provided to the parser was empty.
     #[error("Input string is empty")]

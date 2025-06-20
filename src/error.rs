@@ -1,6 +1,3 @@
-use crate::parser::ParserError;
-
-
 /// Represents the possible errors that can occur within this lib.
 ///
 /// This enum consolidates errors from various stages, including parsing dice notation,
@@ -27,11 +24,4 @@ pub enum Error {
     ///   to keep or drop.
     #[error("Zero value not allowed")]
     ZeroValue,
-
-    /// Encapsulates an error that occurred during the parsing of a dice notation string.
-    ///
-    /// This variant allows errors from the parsing module (represented by [`ParserError`])
-    /// to be propagated and handled as part of this crate's primary `Error` type.
-    #[error("Parser error - {0}")]
-    ParserError(#[from] ParserError)
 }
