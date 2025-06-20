@@ -447,13 +447,13 @@ impl RollBuilder {
 /// total sum of kept dice. It dereferences to `Vec<RollValue>` for direct slice/vector operations.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct RollResult(Vec<RollValue>);
+pub struct RollResult(Box<[RollValue]>);
 
 impl RollResult {
     /// Creates a new `RollResult` from a vector of [`RollValue`]s.
     ///
     /// This is typically used internally when constructing results after a roll.
-    pub fn new(rolls: Vec<RollValue>) -> Self {
+    pub fn new(rolls: Box<[RollValue]>) -> Self {
         Self(rolls)
     }
 
@@ -488,7 +488,7 @@ impl FromIterator<RollValue> for RollResult {
 }
 
 impl Deref for RollResult {
-    type Target = Vec<RollValue>;
+    type Target = Box<[RollValue]>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -763,19 +763,19 @@ mod test {
 
         #[test]
         fn test_roll_result_total(values in prop::collection::vec(1..100u16, 1..20)) {
-            let kept_only: Vec<RollValue> = values.iter()
+            let kept_only: Box<[RollValue]> = values.iter()
                 .map(|&v| RollValue::Kept(v))
                 .collect();
 
             let result_kept = RollResult::new(kept_only);
 
-            let dropped_only: Vec<RollValue> = values.iter()
+            let dropped_only: Box<[RollValue]> = values.iter()
                 .map(|&v| RollValue::Dropped(v))
                 .collect();
 
             let result_dropped = RollResult::new(dropped_only);
 
-            let mixed: Vec<RollValue> = values.iter()
+            let mixed: Box<[RollValue]> = values.iter()
                 .enumerate()
                 .map(|(i, &v)| if i % 2 == 0 { RollValue::Kept(v) } else { RollValue::Dropped(v) })
                 .collect();
