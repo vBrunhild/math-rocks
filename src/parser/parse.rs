@@ -26,7 +26,7 @@ impl Precedence {
 
 /// A Pratt parser for dice notation strings.
 ///
-/// The parser takes a string input, tokenizes it using a [`Lexer`],
+/// The parser takes a string input, tokenizes it
 /// and then constructs an abstract syntax tree ([`Expr`]) representing
 /// the parsed expression. It handles operator precedence and associativity.
 #[derive(Debug)]
@@ -57,7 +57,7 @@ impl Parser {
     /// let empty_parser_result = Parser::new("  ").unwrap_err();
     /// assert!(matches!(empty_parser_result.err(), ParserError::Empty));
     /// ```
-    pub fn new(input: &str) -> Result<Self> {
+    pub fn new(input: &str) -> Result<Self, ParserError> {
         let mut lexer = Lexer::new(input);
         let current = lexer.next_token()?;
 
@@ -94,19 +94,19 @@ impl Parser {
     /// let err = invalid_parser.parse().unwrap_err();
     /// assert!(matches!(err.err(), ParserError::UnexpectedPrefix(_)))
     /// ```
-    pub fn parse(&mut self) -> Result<Expr> {
+    pub fn parse(&mut self) -> Result<Expr, ParserError> {
         self.parse_tokens(Precedence::Lowest)
             .map_err(|err| err.at_pos(self.lexer.position))
     }
 
-    fn next_token(&mut self) -> Result<()> {
+    fn next_token(&mut self) -> Result<(), ParserError> {
         self.current = self.peek;
         self.peek = self.lexer.next_token()?;
 
         Ok(())
     }
 
-    fn parse_tokens(&mut self, precedence: Precedence) -> Result<Expr> {
+    fn parse_tokens(&mut self, precedence: Precedence) -> Result<Expr, ParserError> {
         let mut expr = self.parse_prefix()?;
 
         while self.peek != Token::Eof && precedence < self.peek_precedence() {
@@ -117,7 +117,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn parse_prefix(&mut self) -> Result<Expr> {
+    fn parse_prefix(&mut self) -> Result<Expr, ParserError> {
         match self.current {
             Token::Number(v) => Ok(v.into()),
 
@@ -155,7 +155,7 @@ impl Parser {
         }
     }
 
-    fn parse_infix(&mut self, expr: Expr) -> Result<Expr> {
+    fn parse_infix(&mut self, expr: Expr) -> Result<Expr, ParserError> {
         match self.current {
             Token::Dice => self.parse_dice(expr),
             Token::Plus | Token::Minus | Token::Multiply | Token::Divide => self.parse_binary_op(expr),
@@ -163,7 +163,7 @@ impl Parser {
         }
     }
 
-    fn parse_binary_op(&mut self, left: Expr) -> Result<Expr> {
+    fn parse_binary_op(&mut self, left: Expr) -> Result<Expr, ParserError> {
         let op = self.current;
         self.next_token()?;
 
@@ -178,7 +178,7 @@ impl Parser {
         }
     }
 
-    fn parse_dice(&mut self, count_expr: Expr) -> Result<Expr> {
+    fn parse_dice(&mut self, count_expr: Expr) -> Result<Expr, ParserError> {
         let count = match count_expr {
             Expr::Literal(n) => n,
             other => return Err(ParserError::UnexpectedDiceExpression(format!("{other:?}")))
@@ -202,7 +202,7 @@ impl Parser {
         )
     }
 
-    fn parse_dice_mode(&mut self) -> Result<Mode> {
+    fn parse_dice_mode(&mut self) -> Result<Mode, ParserError> {
         match self.peek {
             Token::KeepHighest | Token::KeepLowest | Token::DropHighest | Token::DropLowest => {
                 self.next_token()?;
@@ -260,7 +260,7 @@ impl Parser {
 /// assert!(expr_result.is_ok());
 /// dbg!(expr_result);
 /// ```
-pub fn parse_to_expr(input: &str) -> Result<Expr> {
+pub fn parse_to_expr(input: &str) -> Result<Expr, ParserError> {
     let mut parser = Parser::new(input)?;
     parser.parse()
 }
@@ -298,7 +298,7 @@ pub fn parse_to_expr(input: &str) -> Result<Expr> {
 ///     assert_eq!(result.rolls.len(), 1);
 /// }
 /// ```
-pub fn parse(input: &str) -> Result<crate::EvaluationResult> {
+pub fn parse(input: &str) -> Result<crate::EvaluationResult, ParserError> {
     Ok(parse_to_expr(input)?.evaluate())
 }
 

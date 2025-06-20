@@ -151,8 +151,6 @@ impl ParserError {
     }
 }
 
-/// A type alias for `Result`s that use [`ParserError`] as the error type.
-pub type Result<T> = std::result::Result<T, ParserError>;
 
 #[cfg(test)]
 mod test {

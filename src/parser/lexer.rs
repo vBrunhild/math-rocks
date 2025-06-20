@@ -1,4 +1,4 @@
-use crate::parser::error::*;
+use crate::parser::error::ParserError;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +33,7 @@ impl Lexer {
         }
     }
 
-    pub fn next_token(&mut self) -> Result<Token> {
+    pub fn next_token(&mut self) -> Result<Token, ParserError> {
         self.skip_whitespace();
 
         if self.position >= self.input.len() {
@@ -79,7 +79,7 @@ impl Lexer {
         }
     }
 
-    fn read_number(&mut self) -> Result<Token> {
+    fn read_number(&mut self) -> Result<Token, ParserError> {
         let start = self.position;
         while self.position < self.input.len() && self.input[self.position].is_ascii_digit() {
             self.position += 1;
@@ -95,7 +95,7 @@ impl Lexer {
         Ok(Token::Number(number))
     }
 
-    fn read_identifier(&mut self) -> Result<Token> {
+    fn read_identifier(&mut self) -> Result<Token, ParserError> {
         let start = self.position;
         while self.position < self.input.len() && self.input[self.position].is_alphabetic() {
             self.position += 1;
